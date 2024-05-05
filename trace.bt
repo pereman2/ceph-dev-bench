@@ -1,0 +1,51 @@
+BEGIN {
+    printf("BEGIN\n");
+}
+
+
+// description of tracepoints
+// https://github.com/torvalds/linux/blob/master/include/trace/events/block.h
+
+// KernelDevice testing
+// _ZN12KernelDevice5flushEv
+//uprobe:/home/pere/ceph-main/build/bin/ceph-osd:_ZN12KernelDevice5flushEv
+tracepoint:block:block_rq_insert
+{
+    @start_block_rq[args->dev, args->sector] = nsecs;
+    @start_block_rq_stack[args->dev, args->sector] = ustack();
+}
+
+tracepoint:block:block_rq_complete
+/@start_block_rq[args->dev, args->sector]/
+{
+    @hist_block_req_us[@start_block_rq_stack[args->dev, args->sector]] = hist((nsecs - @start_block_rq[args->dev, args->sector]) / 1000);
+    delete(@start_block_rq[args->dev, args->sector]);
+    delete(@start_block_rq_stack[args->dev, args->sector]);
+}
+
+// tracepoint:syscalls:sys_enter_fdatasync
+// {
+//     @start[tid] = nsecs;
+//     @start_ustack[tid] = ustack();
+//     @start_kstack[tid] = kstack();
+// }
+// 
+// tracepoint:syscalls:sys_exit_fdatasync
+// /@start[tid]/
+// {
+//     @elapsed = (nsecs - @start[tid]) / 1000;
+// 
+//     @request_ustack[@start_ustack[tid]] = hist(@elapsed);
+//     // @request_kstack[@start_kstack[tid]] = hist(@elapsed);
+//     @complete_ustack[ustack()] = hist(@elapsed);
+//     // @complete_kstack[kstack()] = hist(@elapsed);
+// 
+//     delete(@start[tid]);
+//     delete(@start_ustack[tid]);
+//     delete(@start_kstack[tid]);
+// }
+
+
+profile:s:1 {
+            print(@hist_block_req_us);
+        }
